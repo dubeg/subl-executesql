@@ -1,0 +1,6 @@
+[
+	{
+		"caption": "Execute SQL (sqlcmd)",
+		"command": "execute_sql"
+	}
+]
