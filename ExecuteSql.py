@@ -45,33 +45,43 @@ def execute_sql(window, filename):
     if settings is None:
         show_msg("settings aren't specified.")
         return
+    
     server = settings.get("server")
     database = settings.get("database")
+    showResultsInPanel = settings.get("showResultsInPanel")
+    maxColWidth = settings.get("maxColWidth")
     loginTimeout = settings.get("loginTimeout")
-    optLoginTimeout = "-l {}".format(loginTimeout) if loginTimeout != None else ""
     queryTimeout = settings.get("queryTimeout")
+
+    showResultsInPanel = showResultsInPanel or False
+    optMaxColWidth = "$env:SQLCMDMAXVARTYPEWIDTH={0};$env:SQLCMDMAXFIXEDTYPEWIDTH={0};".format(maxColWidth) if maxColWidth != None else ""
+    optLoginTimeout = "-l {}".format(loginTimeout) if loginTimeout != None else ""
     optQueryTimeout = "-t {}".format(queryTimeout) if queryTimeout != None else ""
+    
     inputPath = filename
     outputDir = get_output_dir()
     outputPath = os.path.join(outputDir, os.path.basename(filename) + ".results")
-    sqlcmd = "& sqlcmd -E -S {} -d {} -i {} {} {} 2>&1 | Out-File {} -Encoding UTF8".format(server, database, inputPath, optLoginTimeout, optQueryTimeout, outputPath)
-    print(sqlcmd)
+    # sqlcmd = "& sqlcmd -E -S {} -d {} -i {} {} {} 2>&1 | Out-File {} -Encoding UTF8".format(server, database, inputPath, optLoginTimeout, optQueryTimeout, outputPath)
+    sqlcmd = "{} & sqlcmd -E -S {} -d {} -i {} {} {} -f 65001 -o {}".format(optMaxColWidth, server, database, inputPath, optLoginTimeout, optQueryTimeout, outputPath)
     pscmd = "powershell -NoProfile -NonInteractive -NoLogo -Command {}".format(sqlcmd)
-
+    # Create results dir
     create_dir(outputDir)
     # Execute SQL
     CREATE_NO_WINDOW = 0x08000000
     process = subprocess.Popen(pscmd, creationflags = CREATE_NO_WINDOW)
     process.wait()
-    results = load_results(outputPath)
-    # Create results panel
-    isUnlisted = False
-    panelName = 'ResultsOfQuery'
-    panelFullname = 'output.{}'.format(panelName)
-    view = window.create_output_panel(panelName, isUnlisted)
-    # Show results
-    view.run_command('insert', {"characters" : results})
-    window.run_command('show_panel', {"panel" : panelFullname})
+    if showResultsInPanel:
+        results = load_results(outputPath)
+        # Create results panel
+        isUnlisted = False
+        panelName = 'ResultsOfQuery'
+        panelFullname = 'output.{}'.format(panelName)
+        view = window.create_output_panel(panelName, isUnlisted)
+        # Show results
+        # AutoIndent is messing with our output if it's not disabled.
+        view.settings().set("auto_indent", False)
+        view.run_command('insert', {"characters" : results})
+        window.run_command('show_panel', {"panel" : panelFullname})
     show_msg("done.")
 
 def get_output_dir():
@@ -89,15 +99,11 @@ def create_dir(dir):
         pass
 
 def load_results(filename):
-    bytes = min(32, os.path.getsize(filename))
-    raw = open(filename, 'rb').read(bytes)
-    if raw.startswith(codecs.BOM_UTF8):
-        encoding = 'utf-8-sig'
-        infile = io.open(filename, 'r', encoding=encoding)
-        data = infile.read()
-        infile.close()
-        return data
+    encoding = 'utf-8-sig'
+    with open(filename, 'r', encoding=encoding) as f:
+        data = f.read()
+    return data
     # else:
     #     result = chardet.detect(raw)
     #     encoding = result['encoding']
-    return "unexpected error - powershell did not generate the output file."
+    # return "unexpected error - powershell did not generate the output file."
