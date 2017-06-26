@@ -47,10 +47,15 @@ def execute_sql(window, filename):
         return
     server = settings.get("server")
     database = settings.get("database")
+    loginTimeout = settings.get("loginTimeout")
+    optLoginTimeout = "-l {}".format(loginTimeout) if loginTimeout != None else ""
+    queryTimeout = settings.get("queryTimeout")
+    optQueryTimeout = "-t {}".format(queryTimeout) if queryTimeout != None else ""
     inputPath = filename
     outputDir = get_output_dir()
     outputPath = os.path.join(outputDir, os.path.basename(filename) + ".results")
-    sqlcmd = "& sqlcmd -E -S {} -d {} -i {} 2>&1 | Out-File {} -Encoding UTF8".format(server, database, inputPath, outputPath)
+    sqlcmd = "& sqlcmd -E -S {} -d {} -i {} {} {} 2>&1 | Out-File {} -Encoding UTF8".format(server, database, inputPath, optLoginTimeout, optQueryTimeout, outputPath)
+    print(sqlcmd)
     pscmd = "powershell -NoProfile -NonInteractive -NoLogo -Command {}".format(sqlcmd)
 
     create_dir(outputDir)

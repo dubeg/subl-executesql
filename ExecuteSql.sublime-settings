@@ -1,4 +1,6 @@
 {
 	"server" : "nameOfServer",
-	"database" : "nameOfDatabase"
+	"database" : "nameOfDatabase",
+	"loginTimeout" : 1,
+	// "queryTimeout" : 30
 }
