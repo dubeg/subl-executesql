@@ -16,10 +16,6 @@ import codecs
 # The only catch is that the Powershell command "Out-File" saves a BOM with UTF8 and UTF16.
 # This requires a bit of file handling to get around that.
 
-# TODO:
-# - Retrieve from settings..
-#   + Server name
-#   + Database name
 def show_msg(msg):
     sublime.status_message("Executing SQL: {}".format(msg))
 
@@ -37,19 +33,24 @@ class ExecuteSqlCommand(sublime_plugin.WindowCommand):
                 else:
                     show_msg("executing.")
                     view.run_command("save")
-                    sublime.set_timeout(lambda: execute_sql(window, filename), 0)
+                    sublime.set_timeout_async(lambda: execute_sql(window, filename), 0)
             else:
                 show_msg("current view is not an SQL file.")
         else:
             show_msg("there's no view currently opened.")
 
 def execute_sql(window, filename):
-    server = "plbsql1"
-    database = "DW_PLB"
+    # Settings
+    settings = sublime.load_settings("ExecuteSql.sublime-settings")
+    if settings is None:
+        show_msg("settings aren't specified.")
+        return
+    server = settings.get("server")
+    database = settings.get("database")
     inputPath = filename
     outputDir = get_output_dir()
     outputPath = os.path.join(outputDir, os.path.basename(filename) + ".results")
-    sqlcmd = "& sqlcmd -E -S {} -d {} -i {} | Out-File {} -Encoding UTF8".format(server, database, inputPath, outputPath)
+    sqlcmd = "& sqlcmd -E -S {} -d {} -i {} 2>&1 | Out-File {} -Encoding UTF8".format(server, database, inputPath, outputPath)
     pscmd = "powershell -NoProfile -NonInteractive -NoLogo -Command {}".format(sqlcmd)
 
     create_dir(outputDir)
@@ -87,10 +88,11 @@ def load_results(filename):
     raw = open(filename, 'rb').read(bytes)
     if raw.startswith(codecs.BOM_UTF8):
         encoding = 'utf-8-sig'
-    else:
-        result = chardet.detect(raw)
-        encoding = result['encoding']
-    infile = io.open(filename, 'r', encoding=encoding)
-    data = infile.read()
-    infile.close()
-    return data
+        infile = io.open(filename, 'r', encoding=encoding)
+        data = infile.read()
+        infile.close()
+        return data
+    # else:
+    #     result = chardet.detect(raw)
+    #     encoding = result['encoding']
+    return "unexpected error - powershell did not generate the output file."
