@@ -4,7 +4,7 @@ import os
 import sys
 import subprocess
 import errno
-
+from timeit import default_timer as timer
 import io
 import codecs
 
@@ -46,6 +46,10 @@ def execute_sql(window, filename):
         show_msg("settings aren't specified.")
         return
     
+    inputPath = filename
+    outputDir = get_output_dir()
+    outputPath = os.path.join(outputDir, os.path.basename(filename) + ".results")
+
     server = settings.get("server")
     database = settings.get("database")
     showResultsInPanel = settings.get("showResultsInPanel")
@@ -54,15 +58,14 @@ def execute_sql(window, filename):
     queryTimeout = settings.get("queryTimeout")
 
     showResultsInPanel = showResultsInPanel or False
-    optMaxColWidth = "$env:SQLCMDMAXVARTYPEWIDTH={0};$env:SQLCMDMAXFIXEDTYPEWIDTH={0};".format(maxColWidth) if maxColWidth != None else ""
+    optFixedLengthTypeWidth = "-Y {}".format(maxColWidth) if maxColWidth != None else ""
+    optVariableLengthTypeWidth = "-y {}".format(maxColWidth) if maxColWidth != None else ""
     optLoginTimeout = "-l {}".format(loginTimeout) if loginTimeout != None else ""
     optQueryTimeout = "-t {}".format(queryTimeout) if queryTimeout != None else ""
+    optOutputPath = "-o {}".format(outputPath) if outputPath != None and outputPath != "" else ""
     
-    inputPath = filename
-    outputDir = get_output_dir()
-    outputPath = os.path.join(outputDir, os.path.basename(filename) + ".results")
     # sqlcmd = "& sqlcmd -E -S {} -d {} -i {} {} {} 2>&1 | Out-File {} -Encoding UTF8".format(server, database, inputPath, optLoginTimeout, optQueryTimeout, outputPath)
-    sqlcmd = "{} & sqlcmd -E -S {} -d {} -i {} {} {} -f 65001 -o {}".format(optMaxColWidth, server, database, inputPath, optLoginTimeout, optQueryTimeout, outputPath)
+    sqlcmd = "& sqlcmd -p -E -S {} -d {} -i {} -f 65001 {} {} {} {} {}".format(server, database, inputPath, optLoginTimeout, optQueryTimeout, optOutputPath, optFixedLengthTypeWidth, optVariableLengthTypeWidth)
     pscmd = "powershell -NoProfile -NonInteractive -NoLogo -Command {}".format(sqlcmd)
     # Create results dir
     create_dir(outputDir)
@@ -82,7 +85,7 @@ def execute_sql(window, filename):
         view.settings().set("auto_indent", False)
         view.run_command('insert', {"characters" : results})
         window.run_command('show_panel', {"panel" : panelFullname})
-    show_msg("done.")
+    show_msg("done (elapsed time: {})".format(elapsedTime))
 
 def get_output_dir():
     base_dir = sublime.packages_path()
@@ -99,11 +102,10 @@ def create_dir(dir):
         pass
 
 def load_results(filename):
+    # Todo: handle exceptions
+    # Ex: opening with the wrong encoding,
+    # Ex: the file doesn't even exist (because of previous error with sqlcmd)
     encoding = 'utf-8-sig'
     with open(filename, 'r', encoding=encoding) as f:
         data = f.read()
     return data
-    # else:
-    #     result = chardet.detect(raw)
-    #     encoding = result['encoding']
-    # return "unexpected error - powershell did not generate the output file."
