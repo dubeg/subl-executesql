@@ -85,7 +85,6 @@ def execute_sql(window, filename):
         view.settings().set("auto_indent", False)
         view.run_command('insert', {"characters" : results})
         window.run_command('show_panel', {"panel" : panelFullname})
-    show_msg("done (elapsed time: {})".format(elapsedTime))
 
 def get_output_dir():
     base_dir = sublime.packages_path()
